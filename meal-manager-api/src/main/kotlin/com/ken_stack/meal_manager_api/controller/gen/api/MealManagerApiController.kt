@@ -8,6 +8,7 @@ import org.springframework.web.reactive.function.server.coRouter
 
 interface IMealManagerApiController {
         suspend fun completeUpload(request: ServerRequest): ServerResponse
+        suspend fun createMeal(request: ServerRequest): ServerResponse
         suspend fun getUploadUrl(request: ServerRequest): ServerResponse
 }
 
@@ -16,6 +17,7 @@ class MealManagerApiControllerRouter {
 @Bean
 fun mealManagerApiControllerRoutes(controller: IMealManagerApiController) = coRouter {
         POST("/meal-manager-api/images/{imageId}/upload/complete", controller::completeUpload)
+        POST("/meal-manager-api/meals", controller::createMeal)
         GET("/meal-manager-api/images/upload-url", controller::getUploadUrl)
     }
 }

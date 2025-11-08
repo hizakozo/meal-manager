@@ -1,3 +1,5 @@
 src/main/kotlin/com/ken_stack/meal_manager_api/controller/gen/api/MealManagerApiController.kt
+src/main/kotlin/com/ken_stack/meal_manager_api/controller/gen/model/CreateMealRequest.kt
+src/main/kotlin/com/ken_stack/meal_manager_api/controller/gen/model/MealResponse.kt
 src/main/kotlin/com/ken_stack/meal_manager_api/controller/gen/model/UploadCompleteResponse.kt
 src/main/kotlin/com/ken_stack/meal_manager_api/controller/gen/model/UploadUrlResponse.kt

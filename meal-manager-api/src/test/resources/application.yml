@@ -3,6 +3,16 @@ spring:
     url: r2dbc:postgresql://localhost:${DB_PORT}/${DB_NAME}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
+  liquibase:
+    enabled: false
+
+aws:
+  s3:
+    endpoint: http://localhost:4566
+    upload-bucket: meal-manager-upload
+    distribution-bucket: meal-manager-distribution
+    use-local: true
+  region: ap-northeast-1
 
 logging:
   level:

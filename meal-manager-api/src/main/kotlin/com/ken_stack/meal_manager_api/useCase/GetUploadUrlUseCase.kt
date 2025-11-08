@@ -2,18 +2,17 @@ package com.ken_stack.meal_manager_api.useCase
 
 import arrow.core.Either
 import arrow.core.raise.either
-import com.ken_stack.meal_manager_api.domain.service.ImageService
+import com.ken_stack.meal_manager_api.domain.service.ImageStore
 import org.springframework.stereotype.Service
 import java.util.UUID
 
 @Service
 class GetUploadUrlUseCase(
-    private val imageService: ImageService
+    private val imageStore: ImageStore
 ) {
     suspend fun execute(): Either<GetUploadUrlUseCaseError, GetUploadUrlOutput> = either {
-        val imageId = UUID.randomUUID()
-        val presignedUrl = try {
-            imageService.upload(imageId)
+        val (imageId, presignedUrl) = try {
+            imageStore.getUploadPresignedUrl()
         } catch (e: Exception) {
             raise(GetUploadUrlUseCaseErrors.FailedToGeneratePresignedUrl(e.message ?: "Unknown error"))
         }

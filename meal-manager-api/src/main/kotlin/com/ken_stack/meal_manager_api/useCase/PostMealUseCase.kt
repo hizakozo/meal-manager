@@ -6,7 +6,7 @@ import com.ken_stack.meal_manager_api.domain.DomainError
 import com.ken_stack.meal_manager_api.domain.model.Image
 import com.ken_stack.meal_manager_api.domain.model.Meal
 import com.ken_stack.meal_manager_api.domain.repository.MealRepository
-import com.ken_stack.meal_manager_api.domain.service.ImageService
+import com.ken_stack.meal_manager_api.domain.service.ImageStore
 import org.springframework.stereotype.Service
 import java.time.LocalDateTime
 import java.util.UUID
@@ -14,13 +14,13 @@ import java.util.UUID
 @Service
 class PostMealUseCase(
     private val mealRepository: MealRepository,
-    private val imageService: ImageService
+    private val imageStore: ImageStore
 ) {
     suspend fun execute(input: PostMealInput): Either<PostMealUseCaseError, PostMealOutput> = either {
         // 画像がある場合、uploadバケットからdistributionバケットにコピーしてImage値オブジェクトを作成
         val image = input.imageId?.let { imageId ->
             try {
-                imageService.copyToDistribution(imageId)
+                imageStore.copyToDistribution(imageId)
                 Image.create().mapLeft { domainError ->
                     PostMealUseCaseErrors.ValidationError(domainError)
                 }.bind()
@@ -54,7 +54,7 @@ class PostMealUseCase(
             cookedAt = savedMeal.cookedAt.value,
             memo = savedMeal.memo.value,
             imageId = savedMeal.image?.imageId,
-            imageUrl = savedMeal.image?.let { imageService.getUrl(it.imageId) },
+            imageUrl = savedMeal.image?.let { imageStore.getDistributionUrl(it.imageId) },
             recipeId = savedMeal.recipeId?.value
         )
     }

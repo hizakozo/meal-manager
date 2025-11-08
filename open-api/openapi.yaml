@@ -44,6 +44,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/UploadCompleteResponse'
 
+  '/meal-manager-api/meals':
+    post:
+      operationId: createMeal
+      tags:
+        - Meal
+      summary: 食事を作成
+      description: 新しい食事記録を作成する。画像がある場合は事前にアップロード完了させたimageIdを指定する。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMealRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealResponse'
+
 components:
   schemas:
     UploadUrlResponse:
@@ -70,3 +91,65 @@ components:
           description: CloudFront配信URL
       required:
         - imageUrl
+
+    CreateMealRequest:
+      title: CreateMealRequest
+      type: object
+      properties:
+        dishName:
+          type: string
+          description: 料理名
+        cookedAt:
+          type: string
+          format: date-time
+          description: 調理日時
+        memo:
+          type: string
+          description: メモ
+        imageId:
+          type: string
+          format: uuid
+          description: 画像ID（事前にアップロード完了済みのもの）
+        recipeId:
+          type: string
+          format: uuid
+          description: レシピID
+      required:
+        - dishName
+        - cookedAt
+        - memo
+
+    MealResponse:
+      title: MealResponse
+      type: object
+      properties:
+        mealId:
+          type: string
+          format: uuid
+          description: 食事ID
+        dishName:
+          type: string
+          description: 料理名
+        cookedAt:
+          type: string
+          format: date-time
+          description: 調理日時
+        memo:
+          type: string
+          description: メモ
+        imageId:
+          type: string
+          format: uuid
+          description: 画像ID
+        imageUrl:
+          type: string
+          description: 画像の配信URL
+        recipeId:
+          type: string
+          format: uuid
+          description: レシピID
+      required:
+        - mealId
+        - dishName
+        - cookedAt
+        - memo

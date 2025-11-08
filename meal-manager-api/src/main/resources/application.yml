@@ -17,3 +17,4 @@ aws:
     endpoint: http://localhost:4566
     upload-bucket: meal-manager-upload
     distribution-bucket: meal-manager-distribution
+    use-local: true
