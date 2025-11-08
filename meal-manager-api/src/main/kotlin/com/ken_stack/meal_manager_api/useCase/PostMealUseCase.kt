@@ -5,6 +5,7 @@ import arrow.core.raise.either
 import com.ken_stack.meal_manager_api.domain.DomainError
 import com.ken_stack.meal_manager_api.domain.model.Image
 import com.ken_stack.meal_manager_api.domain.model.Meal
+import com.ken_stack.meal_manager_api.domain.model.UserId
 import com.ken_stack.meal_manager_api.domain.repository.MealRepository
 import com.ken_stack.meal_manager_api.domain.service.ImageStore
 import org.springframework.stereotype.Service
@@ -19,18 +20,13 @@ class PostMealUseCase(
     suspend fun execute(input: PostMealInput): Either<PostMealUseCaseError, PostMealOutput> = either {
         // 画像がある場合、uploadバケットからdistributionバケットにコピーしてImage値オブジェクトを作成
         val image = input.imageId?.let { imageId ->
-            try {
-                imageStore.copyToDistribution(imageId)
-                Image.create().mapLeft { domainError ->
-                    PostMealUseCaseErrors.ValidationError(domainError)
-                }.bind()
-            } catch (e: Exception) {
-                raise(PostMealUseCaseErrors.FailedToCopyImage(e.message ?: "Unknown error"))
-            }
+            imageStore.copyToDistribution(imageId)
+            Image.of(imageId, java.time.LocalDateTime.now())
         }
 
         // Mealドメインモデルを作成（バリデーション）
         val meal = Meal.create(
+            userId = input.userId,
             dishName = input.dishName,
             cookedAt = input.cookedAt,
             memo = input.memo,
@@ -41,11 +37,7 @@ class PostMealUseCase(
         }.bind()
 
         // Repositoryに保存
-        val savedMeal = try {
-            mealRepository.save(meal)
-        } catch (e: Exception) {
-            raise(PostMealUseCaseErrors.RepositoryError(e.message ?: "Unknown error"))
-        }
+        val savedMeal = mealRepository.save(meal)
 
         // Outputに変換
         PostMealOutput(
@@ -65,11 +57,10 @@ sealed class PostMealUseCaseError(override val code: ErrorCode, override val mes
 
 sealed class PostMealUseCaseErrors {
     data class ValidationError(val domainError: DomainError) : PostMealUseCaseError(ErrorCode.VALIDATION_ERROR, domainError.message)
-    data class FailedToCopyImage(override val message: String) : PostMealUseCaseError(ErrorCode.FAILED_TO_COPY_IMAGE, message)
-    data class RepositoryError(override val message: String) : PostMealUseCaseError(ErrorCode.REPOSITORY_ERROR, message)
 }
 
 data class PostMealInput(
+    val userId: UserId,
     val dishName: String,
     val cookedAt: LocalDateTime,
     val memo: String,

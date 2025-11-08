@@ -2,6 +2,7 @@ package com.ken_stack.meal_manager_api.useCase
 
 import arrow.core.Either
 import arrow.core.raise.either
+import com.ken_stack.meal_manager_api.domain.model.UserId
 import com.ken_stack.meal_manager_api.domain.repository.MealRepository
 import com.ken_stack.meal_manager_api.domain.service.ImageStore
 import org.springframework.stereotype.Service
@@ -15,12 +16,8 @@ class GetMealsUseCase(
     private val imageStore: ImageStore
 ) {
     suspend fun execute(input: GetMealsInput): Either<GetMealsUseCaseError, GetMealsOutput> = either {
-        // Repositoryから取得
-        val meals = try {
-            mealRepository.findAll(input.startDate, input.endDate)
-        } catch (e: Exception) {
-            raise(GetMealsUseCaseErrors.RepositoryError(e.message ?: "Unknown error"))
-        }
+        // Repositoryから取得（SQL時点でuserIdでフィルタリング）
+        val meals = mealRepository.findAll(input.userId, input.startDate, input.endDate)
 
         // DTOに変換
         val mealDtos = meals.map { meal ->
@@ -39,13 +36,10 @@ class GetMealsUseCase(
     }
 }
 
-interface GetMealsUseCaseError
-
-sealed class GetMealsUseCaseErrors : GetMealsUseCaseError {
-    data class RepositoryError(val message: String) : GetMealsUseCaseErrors()
-}
+sealed class GetMealsUseCaseError(override val code: ErrorCode, override val message: String) : UseCaseError
 
 data class GetMealsInput(
+    val userId: UserId,
     val startDate: LocalDate?,
     val endDate: LocalDate?
 )

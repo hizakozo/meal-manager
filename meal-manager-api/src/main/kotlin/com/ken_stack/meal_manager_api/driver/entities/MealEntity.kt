@@ -12,6 +12,9 @@ data class MealEntity(
     @Column("meal_id")
     val mealId: UUID,
 
+    @Column("user_id")
+    val userId: UUID,
+
     @Column("dish_name")
     val dishName: String,
 

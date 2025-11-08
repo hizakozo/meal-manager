@@ -11,11 +11,7 @@ class GetUploadUrlUseCase(
     private val imageStore: ImageStore
 ) {
     suspend fun execute(): Either<GetUploadUrlUseCaseError, GetUploadUrlOutput> = either {
-        val (imageId, presignedUrl) = try {
-            imageStore.getUploadPresignedUrl()
-        } catch (e: Exception) {
-            raise(GetUploadUrlUseCaseErrors.FailedToGeneratePresignedUrl(e.message ?: "Unknown error"))
-        }
+        val (imageId, presignedUrl) = imageStore.getUploadPresignedUrl()
 
         GetUploadUrlOutput(
             imageId = imageId,
@@ -24,11 +20,7 @@ class GetUploadUrlUseCase(
     }
 }
 
-interface GetUploadUrlUseCaseError
-
-sealed class GetUploadUrlUseCaseErrors : GetUploadUrlUseCaseError {
-    data class FailedToGeneratePresignedUrl(val message: String) : GetUploadUrlUseCaseErrors()
-}
+sealed class GetUploadUrlUseCaseError(override val code: ErrorCode, override val message: String) : UseCaseError
 
 data class GetUploadUrlOutput(
     val imageId: UUID,

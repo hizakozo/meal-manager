@@ -2,6 +2,7 @@ package com.ken_stack.meal_manager_api.gateway
 
 import com.ken_stack.meal_manager_api.domain.model.Image
 import com.ken_stack.meal_manager_api.domain.model.Meal
+import com.ken_stack.meal_manager_api.domain.model.UserId
 import com.ken_stack.meal_manager_api.driver.ImageDbDriver
 import com.ken_stack.meal_manager_api.driver.MealDbDriver
 import com.ken_stack.meal_manager_api.driver.MealImageDbDriver
@@ -13,7 +14,6 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
@@ -32,7 +32,9 @@ class MealRepositoryImplTest : StringSpec({
 
     "画像なしの食事を保存できる" {
         // Given
+        val userId = UserId.generate()
         val meal = Meal.create(
+            userId = userId,
             dishName = "カレーライス",
             cookedAt = LocalDateTime.of(2025, 11, 8, 12, 0),
             memo = "おいしかった",
@@ -42,12 +44,13 @@ class MealRepositoryImplTest : StringSpec({
 
         val savedEntity = MealEntity(
             mealId = meal.mealId.value,
+            userId = userId.value,
             dishName = "カレーライス",
             cookedAt = LocalDateTime.of(2025, 11, 8, 12, 0),
             memo = "おいしかった"
         )
 
-        every { mealDbDriver.save(any()) } returns Mono.just(savedEntity)
+        every { mealDbDriver.insert(any(), any(), any(), any(), any()) } returns Mono.just(savedEntity)
         every { mealDbDriver.findById(meal.mealId.value) } returns Mono.just(savedEntity)
         every { mealImageDbDriver.findById(meal.mealId.value) } returns Mono.empty()
 
@@ -60,13 +63,15 @@ class MealRepositoryImplTest : StringSpec({
         savedMeal.memo.value shouldBe "おいしかった"
         savedMeal.image.shouldBeNull()
 
-        coVerify { mealDbDriver.save(any()) }
+        coVerify { mealDbDriver.insert(any(), any(), any(), any(), any()) }
     }
 
     "画像ありの食事を保存できる" {
         // Given
+        val userId = UserId.generate()
         val image = Image.create().getOrNull()!!
         val meal = Meal.create(
+            userId = userId,
             dishName = "パスタ",
             cookedAt = LocalDateTime.of(2025, 11, 8, 18, 30),
             memo = "トマトソース",
@@ -76,6 +81,7 @@ class MealRepositoryImplTest : StringSpec({
 
         val savedMealEntity = MealEntity(
             mealId = meal.mealId.value,
+            userId = userId.value,
             dishName = "パスタ",
             cookedAt = LocalDateTime.of(2025, 11, 8, 18, 30),
             memo = "トマトソース"
@@ -91,9 +97,9 @@ class MealRepositoryImplTest : StringSpec({
             imageId = image.imageId
         )
 
-        every { mealDbDriver.save(any()) } returns Mono.just(savedMealEntity)
-        every { imageDbDriver.save(any()) } returns Mono.just(savedImageEntity)
-        every { mealImageDbDriver.save(any()) } returns Mono.just(savedMealImageEntity)
+        every { mealDbDriver.insert(any(), any(), any(), any(), any()) } returns Mono.just(savedMealEntity)
+        every { imageDbDriver.insert(any(), any()) } returns Mono.just(savedImageEntity)
+        every { mealImageDbDriver.insert(any(), any()) } returns Mono.just(savedMealImageEntity)
         every { mealDbDriver.findById(meal.mealId.value) } returns Mono.just(savedMealEntity)
         every { mealImageDbDriver.findById(meal.mealId.value) } returns Mono.just(savedMealImageEntity)
         every { imageDbDriver.findById(image.imageId) } returns Mono.just(savedImageEntity)
@@ -106,8 +112,8 @@ class MealRepositoryImplTest : StringSpec({
         savedMeal.image.shouldNotBeNull()
         savedMeal.image?.imageId shouldBe image.imageId
 
-        coVerify { imageDbDriver.save(any()) }
-        coVerify { mealImageDbDriver.save(any()) }
+        coVerify { imageDbDriver.insert(any(), any()) }
+        coVerify { mealImageDbDriver.insert(any(), any()) }
     }
 
     "存在しない食事IDで検索するとnullが返る" {
@@ -125,8 +131,10 @@ class MealRepositoryImplTest : StringSpec({
     "保存した食事を取得できる" {
         // Given
         val mealId = UUID.randomUUID()
+        val userId = UserId.generate()
         val mealEntity = MealEntity(
             mealId = mealId,
+            userId = userId.value,
             dishName = "ラーメン",
             cookedAt = LocalDateTime.of(2025, 11, 8, 20, 0),
             memo = "醤油ラーメン"
@@ -146,51 +154,94 @@ class MealRepositoryImplTest : StringSpec({
 
     "すべての食事を取得できる" {
         // Given
+        val userId = UserId.generate()
         val meal1Entity = MealEntity(
             mealId = UUID.randomUUID(),
+            userId = userId.value,
             dishName = "朝食",
             cookedAt = LocalDateTime.of(2025, 11, 8, 8, 0),
             memo = "トースト"
         )
         val meal2Entity = MealEntity(
             mealId = UUID.randomUUID(),
+            userId = userId.value,
             dishName = "昼食",
             cookedAt = LocalDateTime.of(2025, 11, 8, 12, 0),
             memo = "弁当"
         )
 
-        every { mealDbDriver.findAll() } returns Flux.just(meal1Entity, meal2Entity)
+        every { mealDbDriver.findAllByUserId(userId.value) } returns Flux.just(meal1Entity, meal2Entity)
         every { mealImageDbDriver.findById(meal1Entity.mealId) } returns Mono.empty()
         every { mealImageDbDriver.findById(meal2Entity.mealId) } returns Mono.empty()
 
         // When
-        val meals = mealRepository.findAll(null, null)
+        val meals = mealRepository.findAll(userId, null, null)
 
         // Then
         meals.shouldHaveSize(2)
     }
 
+    "他のユーザーの食事は取得されない" {
+        // Given
+        val user1Id = UserId.generate()
+        val user2Id = UserId.generate()
+
+        // ユーザー1の食事
+        val user1Meal = MealEntity(
+            mealId = UUID.randomUUID(),
+            userId = user1Id.value,
+            dishName = "ユーザー1の朝食",
+            cookedAt = LocalDateTime.of(2025, 11, 8, 8, 0),
+            memo = "トースト"
+        )
+
+        // ユーザー2の食事（これは取得されないはず）
+        val user2Meal = MealEntity(
+            mealId = UUID.randomUUID(),
+            userId = user2Id.value,
+            dishName = "ユーザー2の朝食",
+            cookedAt = LocalDateTime.of(2025, 11, 8, 8, 0),
+            memo = "パン"
+        )
+
+        // user1Idで検索した場合、user1のデータのみ返す
+        every { mealDbDriver.findAllByUserId(user1Id.value) } returns Flux.just(user1Meal)
+        every { mealImageDbDriver.findById(user1Meal.mealId) } returns Mono.empty()
+
+        // When - ユーザー1として検索
+        val meals = mealRepository.findAll(user1Id, null, null)
+
+        // Then - ユーザー1の食事のみ取得される
+        meals.shouldHaveSize(1)
+        meals[0].dishName.value shouldBe "ユーザー1の朝食"
+        meals[0].userId shouldBe user1Id
+    }
+
     "日付範囲で食事を絞り込みできる" {
         // Given
+        val userId = UserId.generate()
         val meal1Entity = MealEntity(
             mealId = UUID.randomUUID(),
+            userId = userId.value,
             dishName = "11月7日の夕食",
             cookedAt = LocalDateTime.of(2025, 11, 7, 19, 0),
             memo = "昨日の夕食"
         )
         val meal2Entity = MealEntity(
             mealId = UUID.randomUUID(),
+            userId = userId.value,
             dishName = "11月8日の夕食",
             cookedAt = LocalDateTime.of(2025, 11, 8, 19, 0),
             memo = "今日の夕食"
         )
 
-        every { mealDbDriver.findAll() } returns Flux.just(meal1Entity, meal2Entity)
+        every { mealDbDriver.findAllByUserId(userId.value) } returns Flux.just(meal1Entity, meal2Entity)
         every { mealImageDbDriver.findById(meal1Entity.mealId) } returns Mono.empty()
         every { mealImageDbDriver.findById(meal2Entity.mealId) } returns Mono.empty()
 
         // When
         val meals = mealRepository.findAll(
+            userId = userId,
             startDate = LocalDate.of(2025, 11, 8),
             endDate = LocalDate.of(2025, 11, 8)
         )

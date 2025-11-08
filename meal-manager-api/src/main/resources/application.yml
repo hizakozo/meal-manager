@@ -10,6 +10,15 @@ spring:
     url: jdbc:postgresql://localhost:5433/meal-manager
     user: docker
     password: docker
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH0_JWK_SET_URI:https://dev-auth0.auth0.com/.well-known/jwks.json}
+          issuer-uri: ${AUTH0_ISSUER:https://dev-auth0.auth0.com/}
+
+auth0:
+  audience: ${AUTH0_AUDIENCE:https://api.meal-manager.com}
 
 aws:
   region: us-east-1

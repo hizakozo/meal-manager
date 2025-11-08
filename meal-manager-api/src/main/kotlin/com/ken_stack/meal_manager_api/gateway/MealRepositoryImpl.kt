@@ -2,6 +2,7 @@ package com.ken_stack.meal_manager_api.gateway
 
 import com.ken_stack.meal_manager_api.domain.model.Image
 import com.ken_stack.meal_manager_api.domain.model.Meal
+import com.ken_stack.meal_manager_api.domain.model.UserId
 import com.ken_stack.meal_manager_api.domain.repository.MealRepository
 import com.ken_stack.meal_manager_api.driver.ImageDbDriver
 import com.ken_stack.meal_manager_api.driver.MealDbDriver
@@ -24,15 +25,27 @@ class MealRepositoryImpl(
 
     override suspend fun save(meal: Meal): Meal {
         // MealEntityを保存
-        val savedMealEntity = mealDbDriver.save(meal.toMealEntity()).awaitFirst()
+        val savedMealEntity = mealDbDriver.insert(
+            mealId = meal.mealId.value,
+            userId = meal.userId.value,
+            dishName = meal.dishName.value,
+            cookedAt = meal.cookedAt.value,
+            memo = meal.memo.value
+        ).awaitFirst()
 
         // Imageがある場合、ImageEntityとMealImageEntityを保存
         meal.image?.let { image ->
             // ImageEntityを保存
-            imageDbDriver.save(image.toEntity()).awaitFirst()
+            imageDbDriver.insert(
+                imageId = image.imageId,
+                uploadedAt = image.uploadedAt
+            ).awaitFirst()
 
             // MealImageEntityを保存
-            meal.toMealImageEntity()?.let { mealImageDbDriver.save(it).awaitFirst() }
+            mealImageDbDriver.insert(
+                mealId = meal.mealId.value,
+                imageId = image.imageId
+            ).awaitFirst()
         }
 
         // 保存されたデータを再取得して返す
@@ -55,9 +68,9 @@ class MealRepositoryImpl(
         return mealEntity.toDomain(image)
     }
 
-    override suspend fun findAll(startDate: LocalDate?, endDate: LocalDate?): List<Meal> {
-        // すべてのMealEntityを取得
-        val mealEntities = mealDbDriver.findAll().collectList().awaitFirst()
+    override suspend fun findAll(userId: UserId, startDate: LocalDate?, endDate: LocalDate?): List<Meal> {
+        // userIdで絞り込んでMealEntityを取得（SQL時点でフィルタリング）
+        val mealEntities = mealDbDriver.findAllByUserId(userId.value).collectList().awaitFirst()
 
         // 各MealについてImageを取得
         return mealEntities.mapNotNull { mealEntity ->
@@ -92,6 +105,7 @@ class MealRepositoryImpl(
     private fun MealEntity.toDomain(image: Image?): Meal {
         return Meal.of(
             mealId = this.mealId,
+            userId = UserId.of(this.userId),
             dishName = this.dishName,
             cookedAt = this.cookedAt,
             memo = this.memo,
@@ -103,6 +117,7 @@ class MealRepositoryImpl(
     private fun Meal.toMealEntity(): MealEntity {
         return MealEntity(
             mealId = this.mealId.value,
+            userId = this.userId.value,
             dishName = this.dishName.value,
             cookedAt = this.cookedAt.value,
             memo = this.memo.value

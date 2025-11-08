@@ -8,6 +8,7 @@ import java.util.UUID
 
 class Meal private constructor(
     val mealId: MealId,
+    val userId: UserId,
     val dishName: DishName,
     val cookedAt: CookedAt,
     val memo: Memo,
@@ -16,6 +17,7 @@ class Meal private constructor(
 ) {
     companion object {
         fun create(
+            userId: UserId,
             dishName: String,
             cookedAt: LocalDateTime,
             memo: String,
@@ -28,6 +30,7 @@ class Meal private constructor(
 
             Meal(
                 mealId = MealId.create(),
+                userId = userId,
                 dishName = validatedDishName,
                 cookedAt = validatedCookedAt,
                 memo = validatedMemo,
@@ -38,6 +41,7 @@ class Meal private constructor(
 
         fun of(
             mealId: UUID,
+            userId: UserId,
             dishName: String,
             cookedAt: LocalDateTime,
             memo: String,
@@ -46,6 +50,7 @@ class Meal private constructor(
         ): Meal {
             return Meal(
                 mealId = MealId.of(mealId),
+                userId = userId,
                 dishName = DishName.of(dishName),
                 cookedAt = CookedAt.of(cookedAt),
                 memo = Memo.of(memo),
@@ -68,6 +73,7 @@ class Meal private constructor(
 
         Meal(
             mealId = this@Meal.mealId,
+            userId = this@Meal.userId,
             dishName = validatedDishName,
             cookedAt = validatedCookedAt,
             memo = validatedMemo,

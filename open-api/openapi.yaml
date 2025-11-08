@@ -44,7 +44,47 @@ paths:
               schema:
                 $ref: '#/components/schemas/UploadCompleteResponse'
 
+  '/meal-manager-api/meals/{mealId}':
+    parameters:
+      - schema:
+          type: string
+          format: uuid
+        name: mealId
+        in: path
+        required: true
+        description: 食事ID
+    get:
+      operationId: getMeal
+      tags:
+        - Meal
+      summary: 食事詳細を取得
+      description: 指定されたIDの食事記録を取得する。認証済みユーザーの食事のみ取得可能。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealResponse'
+        '403':
+          description: Forbidden - 他のユーザーの食事にはアクセスできません
+        '404':
+          description: Not Found - 指定されたIDの食事が見つかりません
+
   '/meal-manager-api/meals':
+    get:
+      operationId: getMeals
+      tags:
+        - Meal
+      summary: 食事一覧を取得
+      description: 食事記録の一覧を取得する。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MealsResponse'
     post:
       operationId: createMeal
       tags:
@@ -153,3 +193,14 @@ components:
         - dishName
         - cookedAt
         - memo
+
+    MealsResponse:
+      title: MealsResponse
+      type: object
+      properties:
+        meals:
+          type: array
+          items:
+            $ref: '#/components/schemas/MealResponse'
+      required:
+        - meals

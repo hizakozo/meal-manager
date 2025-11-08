@@ -5,14 +5,23 @@ spring:
     password: ${DB_PASSWORD}
   liquibase:
     enabled: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://test.auth0.com/.well-known/jwks.json
+          issuer-uri: https://test.auth0.com/
+
+auth0:
+  audience: https://api.meal-manager.com
 
 aws:
   s3:
-    endpoint: http://localhost:4566
+    endpoint: ${AWS_S3_ENDPOINT}
     upload-bucket: meal-manager-upload
     distribution-bucket: meal-manager-distribution
     use-local: true
-  region: ap-northeast-1
+  region: us-east-1
 
 logging:
   level:
