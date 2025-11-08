@@ -86,7 +86,7 @@ tasks.withType<Test> {
 
 openApiGenerate {
 	generatorName.set("kotlin-spring")
-	inputSpec.set("$rootDir/../open-api/openapi.yaml")
+	inputSpec.set("$rootDir/../docs/openapi.yaml")
 
 	outputDir.set("$rootDir")
 	globalProperties.set(
@@ -109,7 +109,7 @@ openApiGenerate {
 		)
 	)
 
-	templateDir.set("$rootDir/../open-api/templates/kotlin-spring")
+	templateDir.set("$rootDir/../docs/templates/kotlin-spring")
 }
 
 liquibase {

@@ -57,7 +57,7 @@ ${TableName}Driver.kt: データベースアクセスオブジェクト
 新しいAPIエンドポイントを作成する際は、以下の手順に従う：
 
 ### 1. OpenAPI定義を作成
-`/Users/yasuikendo/dev/meal-manager/open-api/openapi.yaml` にエンドポイント定義を追加
+`/Users/yasuikendo/dev/meal-manager/docs/openapi.yaml` にエンドポイント定義を追加
 - パス、HTTPメソッド、operationId、リクエスト/レスポンススキーマを定義
 - スキーマは `components.schemas` に定義し、`$ref` で参照する
 
