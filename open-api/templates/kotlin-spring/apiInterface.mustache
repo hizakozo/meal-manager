@@ -1,0 +1,27 @@
+package {{apiPackage}}
+
+import org.springframework.web.reactive.function.server.ServerRequest
+import org.springframework.web.reactive.function.server.ServerResponse
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.web.reactive.function.server.coRouter
+
+interface I{{classname}} {
+{{#operations}}
+    {{#operation}}
+        suspend fun {{operationId}}(request: ServerRequest): ServerResponse
+    {{/operation}}
+{{/operations}}
+}
+
+@Configuration
+class {{classname}}Router {
+@Bean
+fun {{#lambda.camelcase}}{{classname}}{{/lambda.camelcase}}Routes(controller: I{{classname}}) = coRouter {
+{{#operations}}
+    {{#operation}}
+        {{#lambda.uppercase}}{{httpMethod}}{{/lambda.uppercase}}("{{path}}", controller::{{operationId}})
+    {{/operation}}
+{{/operations}}
+    }
+}

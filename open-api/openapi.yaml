@@ -1,0 +1,72 @@
+openapi: 3.0.0
+info:
+  title: Meal Manager API
+  version: '1.0.0'
+  description: 献立管理アプリケーションのAPI
+servers:
+  - url: 'http://localhost:8080'
+paths:
+  '/meal-manager-api/images/upload-url':
+    get:
+      operationId: getUploadUrl
+      tags:
+        - Image
+      summary: S3署名付きURLを取得
+      description: 画像アップロード用のS3署名付きURLとimageIdを生成して返す。この時点では何も保存しない。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadUrlResponse'
+
+  '/meal-manager-api/images/{imageId}/upload/complete':
+    parameters:
+      - schema:
+          type: string
+          format: uuid
+        name: imageId
+        in: path
+        required: true
+        description: アップロード時に発行されたimageId
+    post:
+      operationId: completeUpload
+      tags:
+        - Image
+      summary: アップロード完了通知
+      description: Upload用バケットから配信用バケットに画像をコピーし、CloudFront配信URLを返す
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadCompleteResponse'
+
+components:
+  schemas:
+    UploadUrlResponse:
+      title: UploadUrlResponse
+      type: object
+      properties:
+        imageId:
+          type: string
+          format: uuid
+          description: 画像の一意識別子
+        presignedUrl:
+          type: string
+          description: S3署名付きURL
+      required:
+        - imageId
+        - presignedUrl
+
+    UploadCompleteResponse:
+      title: UploadCompleteResponse
+      type: object
+      properties:
+        imageUrl:
+          type: string
+          description: CloudFront配信URL
+      required:
+        - imageUrl

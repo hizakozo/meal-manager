@@ -1,0 +1,19 @@
+spring:
+  profiles:
+    active: local
+  r2dbc:
+    url: r2dbc:postgresql://localhost:5433/meal-manager
+    username: docker
+    password: docker
+  liquibase:
+    change-log: classpath:liquibase/xml/db.changelog.xml
+    url: jdbc:postgresql://localhost:5433/meal-manager
+    user: docker
+    password: docker
+
+aws:
+  region: us-east-1
+  s3:
+    endpoint: http://localhost:4566
+    upload-bucket: meal-manager-upload
+    distribution-bucket: meal-manager-distribution
