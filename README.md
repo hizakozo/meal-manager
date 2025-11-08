@@ -10,6 +10,11 @@ Swagger UIでAPIドキュメントを確認できます：
 
 ## 技術スタック
 
+### Client
+- Kotlin Multiplatform (KMP)
+- Compose Multiplatform
+- クロスプラットフォーム対応 (iOS / Android / Web / Desktop)
+
 ### API
 - Kotlin
 - Spring Boot (WebFlux)
