@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Meal Manager</string>
+    <string name="com_auth0_domain">demo.auth0.com</string>
+</resources>

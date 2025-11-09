@@ -1,4 +1,14 @@
 .idea
+local.properties
 meal-manager-api/.gradle
 meal-manager-api/.kotlin
 meal-manager-api/build
+
+# Kotlin Multiplatform App
+meal-manager-app/.gradle
+meal-manager-app/.kotlin
+meal-manager-app/build
+meal-manager-app/composeApp/build
+meal-manager-app/local.properties
+meal-manager-app/*.iml
+meal-manager-app/.DS_Store

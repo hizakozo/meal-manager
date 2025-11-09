@@ -36,13 +36,32 @@ Swagger UIでAPIドキュメントを確認できます：
 - Docker Compose
 - Testcontainers
 
+## プロジェクト構成
+
+```
+meal-manager/
+├── meal-manager-api/    # バックエンドAPI (Spring Boot)
+├── meal-manager-app/    # クライアントアプリ (Kotlin Multiplatform)
+├── docs/                # API Documentation (Swagger UI)
+└── docker-compose.yml   # 開発環境 (PostgreSQL, LocalStack)
+```
+
 ## 開発環境
 
 ### 前提条件
+
+#### バックエンド開発
 - JDK 21
 - Docker & Docker Compose
 
+#### クライアント開発
+- JDK 21
+- IntelliJ IDEA Ultimate（推奨）または Android Studio
+- Xcode（iOSビルドに必要、macOSのみ）
+
 ### セットアップ
+
+#### バックエンドAPI
 
 1. リポジトリをクローン
    ```bash
@@ -55,7 +74,7 @@ Swagger UIでAPIドキュメントを確認できます：
    docker-compose up -d
    ```
 
-3. アプリケーションをビルド
+3. APIをビルド
    ```bash
    cd meal-manager-api
    ./gradlew build
@@ -65,6 +84,23 @@ Swagger UIでAPIドキュメントを確認できます：
    ```bash
    ./gradlew test
    ```
+
+#### クライアントアプリ
+
+1. プロジェクトをIDEで開く
+   ```bash
+   cd meal-manager-app
+   # IntelliJ IDEA または Android Studio で開く
+   ```
+
+2. Androidアプリを実行
+   ```bash
+   ./gradlew :composeApp:run
+   ```
+
+3. iOSアプリを実行（macOSのみ）
+   - IntelliJ IDEA: Run Configuration から `iosApp` を選択して実行
+   - または Xcode で `iosApp/iosApp.xcodeproj` を開いて実行
 
 ## API開発手順
 
