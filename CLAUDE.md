@@ -265,3 +265,136 @@ upload用バケットは24時間で自動削除されるように設定する
 2. サーバーがS3の署名付きURLを生成してクライアントに返す
 3. クライアントが署名付きURLを使用してS3に画像をアップロード
 4. アップロードが完了したら、サーバーに通知してメタデータをupload用バケットから配信用バケットにコピーする
+
+---
+
+# クライアントアプリ（meal-manager-app）の設計方針
+
+## 技術スタック
+- **言語**: Kotlin
+- **UI**: Compose Multiplatform
+- **プラットフォーム**: Android / iOS
+- **認証**: Auth0 Android SDK
+- **HTTP Client**: Ktor Client
+- **状態管理**: ViewModel + StateFlow
+
+## アーキテクチャ方針
+
+### 基本原則
+- **機能ベースのディレクトリ構成**: 機能（feature）ごとにコンテキストを分離
+- **シンプルなレイヤー構成**: Model + ViewModel + API呼び出し関数
+- **レイヤー分けしない**: Repository層、UseCase層などは作らない
+- **try-catchを使わない**: エラーハンドリングは上位層に任せる
+
+### ディレクトリ構成
+
+```
+composeApp/src/commonMain/kotlin/com/kenstack/mealmanager/
+├── feature/                    # 機能別モジュール
+│   ├── auth/                   # 認証機能
+│   │   ├── model/              # AuthState など
+│   │   ├── ui/                 # LoginScreen
+│   │   └── viewmodel/          # LoginViewModel (androidMain)
+│   │
+│   ├── meal/                   # 食事管理機能
+│   │   ├── model/              # Meal, MealList などのドメインモデル
+│   │   ├── api/                # API呼び出し関数（getMeals, createMeal など）
+│   │   ├── ui/                 # MealListScreen, MealDetailScreen, MealCreateScreen
+│   │   ├── viewmodel/          # MealListViewModel など (androidMain)
+│   │   └── util/               # meal機能内のユーティリティ（必要に応じて）
+│   │
+│   └── recipe/                 # レシピ機能（将来実装予定）
+│       ├── model/
+│       ├── api/
+│       ├── ui/
+│       ├── viewmodel/
+│       └── util/
+│
+└── infrastructure/             # 全体で使う共通基盤
+    ├── http/                   # Ktor Client, 認証インターセプター
+    ├── auth/                   # TokenManager, SecureStorage
+    ├── storage/                # ローカルストレージ関連（必要に応じて）
+    └── util/                   # 共通ユーティリティ
+```
+
+### 各層の責務
+
+#### feature/{機能名}/model/
+- ドメインモデル、データクラス
+- 画面の状態を表すStateクラス
+- 例: `Meal.kt`, `MealListState.kt`
+
+#### feature/{機能名}/api/
+- API呼び出し関数のみを配置
+- Ktor Clientを使ってHTTPリクエストを実行
+- 例: `MealApi.kt`（getMeals(), createMeal(), getMeal() などの関数）
+- **try-catchは使わない**
+
+#### feature/{機能名}/ui/
+- Compose UI画面
+- 例: `MealListScreen.kt`, `MealDetailScreen.kt`
+
+#### feature/{機能名}/viewmodel/
+- ViewModelクラス（androidMain/iosMainに配置）
+- UI状態管理
+- API呼び出しのトリガー
+- StateFlowでUI状態を公開
+
+#### infrastructure/http/
+- Ktor Clientのセットアップ
+- 認証インターセプター（Auth0トークンを自動付与）
+- 共通のエラーハンドリング
+
+### 実装時の注意点
+
+#### ❌ やらないこと
+- Repository層、UseCase層の作成
+- try-catchによるエラーハンドリング
+- 過度な抽象化
+
+#### ✅ やること
+- 機能ごとにfeature配下でコンテキストを切る
+- Model + ViewModel + API呼び出し関数のシンプルな構成
+- 共通基盤はinfrastructure配下に配置
+- ViewModelでAPI呼び出しを実行し、結果をStateFlowで管理
+
+### API呼び出しの例
+
+```kotlin
+// feature/meal/api/MealApi.kt
+suspend fun getMeals(client: HttpClient): List<Meal> {
+    return client.get("https://api.example.com/meals").body()
+}
+
+// feature/meal/viewmodel/MealListViewModel.kt (androidMain)
+class MealListViewModel(
+    private val httpClient: HttpClient
+) : ViewModel() {
+    private val _state = MutableStateFlow<MealListState>(MealListState.Loading)
+    val state: StateFlow<MealListState> = _state.asStateFlow()
+
+    fun loadMeals() {
+        viewModelScope.launch {
+            _state.value = MealListState.Loading
+            val meals = getMeals(httpClient)
+            _state.value = MealListState.Success(meals)
+        }
+    }
+}
+```
+
+### エラーハンドリング方針
+- API呼び出し関数では**try-catchを使わない**
+- ViewModelレベルでエラーをハンドリング
+- エラー発生時は適切なStateに遷移させる
+
+### 実装順序
+1. **API通信基盤（infrastructure/http）**
+   - Ktor Clientセットアップ
+   - 認証インターセプター
+2. **食事機能（feature/meal）**
+   - Modelの定義
+   - API呼び出し関数の実装
+   - 食事一覧画面 + ViewModel
+   - 食事作成画面 + 画像アップロード
+   - 食事詳細画面

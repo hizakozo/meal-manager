@@ -17,8 +17,15 @@ fun LoginScreen(
     authState: AuthState,
     onLoginClick: () -> Unit,
     onLogoutClick: () -> Unit,
+    onLoginSuccess: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    // ログイン成功時にナビゲーション
+    LaunchedEffect(authState) {
+        if (authState is AuthState.Authenticated) {
+            onLoginSuccess()
+        }
+    }
     Scaffold(
         modifier = modifier.fillMaxSize()
     ) { padding ->
