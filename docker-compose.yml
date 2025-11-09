@@ -1,5 +1,7 @@
-version: '3'
+version: '3.8'
+
 services:
+  # PostgreSQLデータベース
   db:
     image: postgres:14.5
     ports:
@@ -12,7 +14,15 @@ services:
       TZ: "UTC"
     container_name: 'meal-manager-postgres'
     command: postgres -c listen_addresses='*'
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docker -d meal-manager"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meal-manager-network
 
+  # LocalStack (S3エミュレーター)
   localstack:
     image: localstack/localstack:latest
     ports:
@@ -24,6 +34,51 @@ services:
       - ./localstack-init:/etc/localstack/init/ready.d
       - localstack-data:/var/lib/localstack
     container_name: 'meal-manager-localstack'
+    networks:
+      - meal-manager-network
+
+  # APIサーバー
+  api:
+    build:
+      context: ./meal-manager-api
+      dockerfile: Dockerfile
+    container_name: meal-manager-api
+    environment:
+      # データベース接続設定
+      SPRING_R2DBC_URL: r2dbc:postgresql://db:5432/meal-manager
+      SPRING_R2DBC_USERNAME: docker
+      SPRING_R2DBC_PASSWORD: docker
+      SPRING_LIQUIBASE_URL: jdbc:postgresql://db:5432/meal-manager
+      SPRING_LIQUIBASE_USER: docker
+      SPRING_LIQUIBASE_PASSWORD: docker
+
+      # Auth0設定（.envファイルから読み込み）
+      AUTH0_JWK_SET_URI: ${AUTH0_JWK_SET_URI}
+      AUTH0_ISSUER: ${AUTH0_ISSUER}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+
+      # LocalStack S3設定
+      AWS_REGION: us-east-1
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_S3_UPLOAD_BUCKET: meal-manager-upload
+      AWS_S3_DISTRIBUTION_BUCKET: meal-manager-distribution
+      AWS_S3_USE_LOCAL: true
+
+      # Spring Boot設定
+      SPRING_PROFILES_ACTIVE: local
+    ports:
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      localstack:
+        condition: service_started
+    networks:
+      - meal-manager-network
 
 volumes:
   localstack-data:
+
+networks:
+  meal-manager-network:
+    driver: bridge

@@ -1,3 +1,24 @@
+# 重要なルール
+
+## コード変更時の必須チェック
+**コードを変更した後は、必ずコンパイルチェックを実行すること**
+
+### Androidアプリ（meal-manager-app）
+```bash
+cd meal-manager-app
+./gradlew :composeApp:compileDebugKotlinAndroid --no-daemon
+```
+
+### APIサーバー（meal-manager-api）
+```bash
+cd meal-manager-api
+./gradlew compileKotlin --no-daemon
+```
+
+コンパイルエラーがある状態でユーザーに提示しないこと。
+
+---
+
 # 技術スタック
 ### API
 - Kotlin

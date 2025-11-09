@@ -11,4 +11,4 @@ meal-manager-app/build
 meal-manager-app/composeApp/build
 meal-manager-app/local.properties
 meal-manager-app/*.iml
-meal-manager-app/.DS_Store
+meal-manager-app/.DS_Store.env

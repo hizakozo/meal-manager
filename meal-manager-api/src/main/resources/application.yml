@@ -14,11 +14,11 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${AUTH0_JWK_SET_URI:https://dev-auth0.auth0.com/.well-known/jwks.json}
-          issuer-uri: ${AUTH0_ISSUER:https://dev-auth0.auth0.com/}
+          jwk-set-uri: ${AUTH0_JWK_SET_URI}
+          issuer-uri: ${AUTH0_ISSUER}
 
 auth0:
-  audience: ${AUTH0_AUDIENCE:https://api.meal-manager.com}
+  audience: ${AUTH0_AUDIENCE}
 
 aws:
   region: us-east-1

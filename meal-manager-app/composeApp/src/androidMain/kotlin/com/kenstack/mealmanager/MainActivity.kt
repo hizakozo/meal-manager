@@ -1,6 +1,7 @@
 package com.kenstack.mealmanager
 
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -20,14 +21,28 @@ import com.kenstack.mealmanager.feature.meal.viewmodel.MealListViewModel
 import com.kenstack.mealmanager.navigation.Screen
 
 class MainActivity : ComponentActivity() {
+
+    companion object {
+        private const val TAG = "MainActivity"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        Log.d(TAG, "onCreate started")
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        Log.d(TAG, "setContent starting")
         setContent {
+            Log.d(TAG, "Inside setContent")
             val navController = rememberNavController()
-            val loginViewModel = remember { LoginViewModel(this) }
+            Log.d(TAG, "NavController created")
+            val loginViewModel = remember {
+                Log.d(TAG, "Creating LoginViewModel")
+                LoginViewModel(this)
+            }
+            Log.d(TAG, "LoginViewModel created")
             val authState by loginViewModel.authState.collectAsState()
+            Log.d(TAG, "AuthState collected")
 
             NavHost(
                 navController = navController,

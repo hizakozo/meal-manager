@@ -1,5 +1,8 @@
 package com.kenstack.mealmanager.infrastructure.auth
 
+import android.util.Base64
+import org.json.JSONObject
+
 /**
  * JWTトークンの管理クラス（Android専用）
  * - トークンの保存・取得・削除
@@ -76,5 +79,32 @@ class TokenManager(
         secureStorage.delete(KEY_ACCESS_TOKEN)
         secureStorage.delete(KEY_REFRESH_TOKEN)
         secureStorage.delete(KEY_EXPIRES_AT)
+    }
+
+    /**
+     * JWTトークンからユーザーID（sub）を取得
+     */
+    suspend fun getUserIdFromToken(): String? {
+        val token = getAccessToken() ?: return null
+        return try {
+            // JWTは "header.payload.signature" の形式
+            val parts = token.split(".")
+            if (parts.size != 3) return null
+
+            // payloadをBase64デコード
+            val payload = parts[1]
+            val decodedBytes = Base64.decode(payload, Base64.URL_SAFE or Base64.NO_WRAP)
+            val decodedString = String(decodedBytes, Charsets.UTF_8)
+
+            // JSONからsubクレームを取得
+            val json = JSONObject(decodedString)
+            if (json.has("sub")) {
+                json.getString("sub")
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }
