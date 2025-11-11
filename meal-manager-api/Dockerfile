@@ -15,6 +15,9 @@ RUN gradle clean build -x test --no-daemon
 # 実行ステージ
 FROM eclipse-temurin:21-jre-alpine
 
+# ヘルスチェック用にcurlをインストール
+RUN apk add --no-cache curl
+
 WORKDIR /app
 
 # ビルド成果物をコピー

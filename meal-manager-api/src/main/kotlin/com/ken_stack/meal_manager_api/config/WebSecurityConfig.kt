@@ -30,7 +30,9 @@ class WebSecurityConfig(
             .formLogin { it.disable() }
             .httpBasic { it.authenticationEntryPoint(HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED)) }
             .authorizeExchange { exchange ->
-                exchange.anyExchange().authenticated()
+                exchange
+                    .pathMatchers("/actuator/health", "/actuator/info").permitAll()
+                    .anyExchange().authenticated()
             }
             .oauth2ResourceServer { oauth2 ->
                 // Auth0のJWTのみを使用

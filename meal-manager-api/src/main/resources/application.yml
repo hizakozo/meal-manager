@@ -1,29 +1,39 @@
 spring:
   profiles:
-    active: local
+    active: ${SPRING_PROFILES_ACTIVE:local}
   r2dbc:
-    url: r2dbc:postgresql://localhost:5433/meal-manager
-    username: docker
-    password: docker
+    url: r2dbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5433}/${DATABASE_NAME:meal-manager}
+    username: ${DATABASE_USERNAME:docker}
+    password: ${DATABASE_PASSWORD:docker}
   liquibase:
+    enabled: ${SPRING_LIQUIBASE_ENABLED:true}
     change-log: classpath:liquibase/xml/db.changelog.xml
-    url: jdbc:postgresql://localhost:5433/meal-manager
-    user: docker
-    password: docker
+    url: jdbc:postgresql://${DATABASE_HOST:localhost}:${DATABASE_PORT:5433}/${DATABASE_NAME:meal-manager}
+    user: ${DATABASE_USERNAME:docker}
+    password: ${DATABASE_PASSWORD:docker}
   security:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${AUTH0_JWK_SET_URI}
-          issuer-uri: ${AUTH0_ISSUER}
+          jwk-set-uri: ${AUTH0_JWK_URI:https://dev-auth0.auth0.com/.well-known/jwks.json}
+          issuer-uri: ${AUTH0_ISSUER:https://dev-auth0.auth0.com/}
 
 auth0:
-  audience: ${AUTH0_AUDIENCE}
+  audience: ${AUTH0_AUDIENCE:https://api.meal-manager.com}
 
 aws:
-  region: us-east-1
+  region: ${AWS_REGION:us-east-1}
   s3:
-    endpoint: http://localhost:4566
-    upload-bucket: meal-manager-upload
-    distribution-bucket: meal-manager-distribution
-    use-local: true
+    endpoint: ${AWS_S3_ENDPOINT:http://localhost:4566}
+    upload-bucket: ${S3_UPLOAD_BUCKET:meal-manager-upload}
+    distribution-bucket: ${S3_DISTRIBUTION_BUCKET:meal-manager-distribution}
+    use-local: ${AWS_S3_USE_LOCAL:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized

@@ -1,0 +1,164 @@
+name: Deploy to ECS
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_hash:
+        description: 'デプロイするコミットハッシュ'
+        required: true
+        type: string
+      environment:
+        description: 'デプロイ環境'
+        required: true
+        type: choice
+        options:
+          - dev
+          - stg
+          - prod
+        default: 'dev'
+
+permissions:
+  id-token: write   # OIDC認証に必要
+  contents: read    # リポジトリ読み取りに必要
+
+env:
+  AWS_REGION: ap-northeast-1
+  PROJECT_NAME: meal-manager
+
+jobs:
+  migrate-database:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout specified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_hash }}
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get DB credentials from Secrets Manager
+        id: db-secrets
+        run: |
+          SECRET_VALUE=$(aws secretsmanager get-secret-value \
+            --secret-id ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-rds-credentials \
+            --query SecretString \
+            --output text)
+
+          echo "DB_HOST=$(echo $SECRET_VALUE | jq -r .host)" >> $GITHUB_OUTPUT
+          echo "DB_PORT=$(echo $SECRET_VALUE | jq -r .port)" >> $GITHUB_OUTPUT
+          echo "DB_NAME=$(echo $SECRET_VALUE | jq -r .dbname)" >> $GITHUB_OUTPUT
+          echo "DB_USER=$(echo $SECRET_VALUE | jq -r .username)" >> $GITHUB_OUTPUT
+          echo "::add-mask::$(echo $SECRET_VALUE | jq -r .password)"
+          echo "DB_PASS=$(echo $SECRET_VALUE | jq -r .password)" >> $GITHUB_OUTPUT
+
+      - name: Run Liquibase migration
+        working-directory: meal-manager-api
+        run: ./gradlew update --no-daemon
+        env:
+          DB_URL: ${{ steps.db-secrets.outputs.DB_HOST }}:${{ steps.db-secrets.outputs.DB_PORT }}/${{ steps.db-secrets.outputs.DB_NAME }}
+          DB_USER: ${{ steps.db-secrets.outputs.DB_USER }}
+          DB_PASS: ${{ steps.db-secrets.outputs.DB_PASS }}
+
+      - name: Migration summary
+        run: |
+          echo "## Database Migration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ inputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Database:** ${{ steps.db-secrets.outputs.DB_HOST }}:${{ steps.db-secrets.outputs.DB_PORT }}/${{ steps.db-secrets.outputs.DB_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Migration completed successfully" >> $GITHUB_STEP_SUMMARY
+
+  build:
+    needs: migrate-database
+    runs-on: ubuntu-latest
+
+    outputs:
+      image: ${{ steps.build-image.outputs.image }}
+
+    steps:
+      - name: Checkout specified commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit_hash }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.PROJECT_NAME }}-api
+          IMAGE_TAG: ${{ inputs.commit_hash }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f meal-manager-api/Dockerfile meal-manager-api
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Build summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ inputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ steps.build-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Built and pushed successfully" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.PROJECT_NAME }}-api \
+            --query taskDefinition > task-definition.json
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.PROJECT_NAME }}-api
+          image: ${{ needs.build.outputs.image }}
+
+      - name: Deploy Amazon ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.PROJECT_NAME }}-api-service
+          cluster: ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster
+          wait-for-service-stability: true
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ inputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ needs.build.outputs.image }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cluster:** ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster" >> $GITHUB_STEP_SUMMARY
+          echo "- **Service:** ${{ env.PROJECT_NAME }}-api-service" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
