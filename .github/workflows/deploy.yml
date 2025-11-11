@@ -4,9 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       commit_hash:
-        description: 'デプロイするコミットハッシュ'
-        required: true
+        description: 'デプロイするコミットハッシュ（空欄の場合は最新のコミットを使用）'
+        required: false
         type: string
+        default: ''
       environment:
         description: 'デプロイ環境'
         required: true
@@ -29,11 +30,21 @@ jobs:
   migrate-database:
     runs-on: ubuntu-latest
 
+    outputs:
+      commit_hash: ${{ steps.get-commit.outputs.commit_hash }}
+
     steps:
       - name: Checkout specified commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_hash }}
+          ref: ${{ inputs.commit_hash || github.sha }}
+
+      - name: Get commit hash
+        id: get-commit
+        run: |
+          COMMIT_HASH=$(git rev-parse HEAD)
+          echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
+          echo "Using commit: $COMMIT_HASH"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -74,7 +85,7 @@ jobs:
         run: |
           echo "## Database Migration Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ inputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ steps.get-commit.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Database:** ${{ steps.db-secrets.outputs.DB_HOST }}:${{ steps.db-secrets.outputs.DB_PORT }}/${{ steps.db-secrets.outputs.DB_NAME }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Migration completed successfully" >> $GITHUB_STEP_SUMMARY
 
@@ -84,12 +95,13 @@ jobs:
 
     outputs:
       image: ${{ steps.build-image.outputs.image }}
+      commit_hash: ${{ needs.migrate-database.outputs.commit_hash }}
 
     steps:
       - name: Checkout specified commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.commit_hash }}
+          ref: ${{ inputs.commit_hash || github.sha }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -106,7 +118,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.PROJECT_NAME }}-api
-          IMAGE_TAG: ${{ inputs.commit_hash }}
+          IMAGE_TAG: ${{ needs.migrate-database.outputs.commit_hash }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f meal-manager-api/Dockerfile meal-manager-api
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
@@ -116,7 +128,7 @@ jobs:
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ inputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ needs.migrate-database.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image:** ${{ steps.build-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Built and pushed successfully" >> $GITHUB_STEP_SUMMARY
 
@@ -157,7 +169,7 @@ jobs:
         run: |
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ inputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ needs.build.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image:** ${{ needs.build.outputs.image }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Cluster:** ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster" >> $GITHUB_STEP_SUMMARY
           echo "- **Service:** ${{ env.PROJECT_NAME }}-api-service" >> $GITHUB_STEP_SUMMARY
