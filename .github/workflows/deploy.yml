@@ -86,81 +86,8 @@ jobs:
           echo "- **Image:** ${{ steps.build-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Built and pushed successfully" >> $GITHUB_STEP_SUMMARY
 
-  migrate-database:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Run migration ECS task
-        id: migration
-        run: |
-          TASK_ARN=$(aws ecs run-task \
-            --cluster ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster \
-            --task-definition ${{ env.PROJECT_NAME }}-migration \
-            --launch-type EC2 \
-            --query 'tasks[0].taskArn' \
-            --output text)
-
-          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
-          echo "Started migration task: $TASK_ARN"
-
-      - name: Wait for migration task completion
-        run: |
-          TASK_ARN="${{ steps.migration.outputs.task_arn }}"
-          echo "Waiting for migration task to complete..."
-
-          while true; do
-            TASK_STATUS=$(aws ecs describe-tasks \
-              --cluster ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster \
-              --tasks "$TASK_ARN" \
-              --query 'tasks[0].lastStatus' \
-              --output text)
-
-            echo "Current status: $TASK_STATUS"
-
-            if [ "$TASK_STATUS" = "STOPPED" ]; then
-              EXIT_CODE=$(aws ecs describe-tasks \
-                --cluster ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster \
-                --tasks "$TASK_ARN" \
-                --query 'tasks[0].containers[0].exitCode' \
-                --output text)
-
-              if [ "$EXIT_CODE" = "0" ]; then
-                echo "✅ Migration completed successfully"
-                break
-              else
-                echo "❌ Migration failed with exit code: $EXIT_CODE"
-                exit 1
-              fi
-            fi
-
-            sleep 10
-          done
-
-      - name: Get CloudWatch logs URL
-        id: logs
-        run: |
-          TASK_ID=$(echo "${{ steps.migration.outputs.task_arn }}" | awk -F/ '{print $NF}')
-          LOG_URL="https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252F${{ env.PROJECT_NAME }}-migration/log-events/migration\$252F${{ env.PROJECT_NAME }}-migration\$252F$TASK_ID"
-          echo "log_url=$LOG_URL" >> $GITHUB_OUTPUT
-
-      - name: Migration summary
-        run: |
-          echo "## Database Migration Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ needs.build.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Task ARN:** ${{ steps.migration.outputs.task_arn }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Logs:** [View logs](${{ steps.logs.outputs.log_url }})" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ✅ Migration completed successfully" >> $GITHUB_STEP_SUMMARY
-
   deploy:
-    needs: [build, migrate-database]
+    needs: build
     runs-on: ubuntu-latest
 
     steps:

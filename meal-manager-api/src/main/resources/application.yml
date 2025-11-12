@@ -28,6 +28,8 @@ aws:
     upload-bucket: ${S3_UPLOAD_BUCKET:meal-manager-upload}
     distribution-bucket: ${S3_DISTRIBUTION_BUCKET:meal-manager-distribution}
     use-local: ${AWS_S3_USE_LOCAL:true}
+  cloudfront:
+    distribution-domain: ${CLOUDFRONT_DISTRIBUTION_DOMAIN:d3ggnzqelvu3fd.cloudfront.net}
 
 management:
   endpoints:
