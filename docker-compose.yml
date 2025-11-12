@@ -41,7 +41,7 @@ services:
   api:
     build:
       context: ./meal-manager-api
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile_local
     container_name: meal-manager-api
     environment:
       # データベース接続設定
