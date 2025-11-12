@@ -6,11 +6,15 @@ WORKDIR /app
 # Gradleのキャッシュを活用するため、依存関係を先にダウンロード
 COPY build.gradle.kts settings.gradle.kts ./
 COPY gradle gradle
-RUN gradle dependencies --no-daemon || true
+
+# BuildKitのキャッシュマウントを使用して依存関係を高速化
+RUN --mount=type=cache,target=/root/.gradle \
+    gradle dependencies --no-daemon || true
 
 # ソースコードをコピーしてビルド
 COPY src ./src
-RUN gradle clean build -x test --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    gradle clean build -x test --no-daemon
 
 # 実行ステージ
 FROM eclipse-temurin:21-jre-alpine
