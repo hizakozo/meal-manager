@@ -46,47 +46,63 @@ jobs:
           echo "commit_hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
           echo "Using commit: $COMMIT_HASH"
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: 'temurin'
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Get DB credentials from Secrets Manager
-        id: db-secrets
+      - name: Start CodeBuild migration
+        id: codebuild
         run: |
-          SECRET_VALUE=$(aws secretsmanager get-secret-value \
-            --secret-id ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-rds-credentials \
-            --query SecretString \
+          BUILD_ID=$(aws codebuild start-build \
+            --project-name ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-migration \
+            --source-version ${{ steps.get-commit.outputs.commit_hash }} \
+            --query 'build.id' \
             --output text)
 
-          echo "DB_HOST=$(echo $SECRET_VALUE | jq -r .host)" >> $GITHUB_OUTPUT
-          echo "DB_PORT=$(echo $SECRET_VALUE | jq -r .port)" >> $GITHUB_OUTPUT
-          echo "DB_NAME=$(echo $SECRET_VALUE | jq -r .dbname)" >> $GITHUB_OUTPUT
-          echo "DB_USER=$(echo $SECRET_VALUE | jq -r .username)" >> $GITHUB_OUTPUT
-          echo "::add-mask::$(echo $SECRET_VALUE | jq -r .password)"
-          echo "DB_PASS=$(echo $SECRET_VALUE | jq -r .password)" >> $GITHUB_OUTPUT
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "Started CodeBuild: $BUILD_ID"
 
-      - name: Run Liquibase migration
-        working-directory: meal-manager-api
-        run: ./gradlew update --no-daemon
-        env:
-          DB_URL: ${{ steps.db-secrets.outputs.DB_HOST }}:${{ steps.db-secrets.outputs.DB_PORT }}/${{ steps.db-secrets.outputs.DB_NAME }}
-          DB_USER: ${{ steps.db-secrets.outputs.DB_USER }}
-          DB_PASS: ${{ steps.db-secrets.outputs.DB_PASS }}
+      - name: Wait for CodeBuild completion
+        run: |
+          BUILD_ID="${{ steps.codebuild.outputs.build_id }}"
+          echo "Waiting for build $BUILD_ID to complete..."
+
+          while true; do
+            BUILD_STATUS=$(aws codebuild batch-get-builds \
+              --ids "$BUILD_ID" \
+              --query 'builds[0].buildStatus' \
+              --output text)
+
+            echo "Current status: $BUILD_STATUS"
+
+            if [ "$BUILD_STATUS" = "SUCCEEDED" ]; then
+              echo "✅ Migration completed successfully"
+              break
+            elif [ "$BUILD_STATUS" = "FAILED" ] || [ "$BUILD_STATUS" = "FAULT" ] || [ "$BUILD_STATUS" = "TIMED_OUT" ] || [ "$BUILD_STATUS" = "STOPPED" ]; then
+              echo "❌ Migration failed with status: $BUILD_STATUS"
+              echo "Check logs: https://console.aws.amazon.com/codesuite/codebuild/projects/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-migration/build/$BUILD_ID"
+              exit 1
+            fi
+
+            sleep 10
+          done
+
+      - name: Get CodeBuild logs URL
+        id: logs
+        run: |
+          BUILD_ID="${{ steps.codebuild.outputs.build_id }}"
+          LOG_URL="https://console.aws.amazon.com/codesuite/codebuild/projects/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-migration/build/$BUILD_ID"
+          echo "log_url=$LOG_URL" >> $GITHUB_OUTPUT
 
       - name: Migration summary
         run: |
           echo "## Database Migration Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** ${{ steps.get-commit.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Database:** ${{ steps.db-secrets.outputs.DB_HOST }}:${{ steps.db-secrets.outputs.DB_PORT }}/${{ steps.db-secrets.outputs.DB_NAME }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **CodeBuild ID:** ${{ steps.codebuild.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Logs:** [View logs](${{ steps.logs.outputs.log_url }})" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Migration completed successfully" >> $GITHUB_STEP_SUMMARY
 
   build:
