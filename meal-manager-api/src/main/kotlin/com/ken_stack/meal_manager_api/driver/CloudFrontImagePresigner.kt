@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component
 import java.util.UUID
 
 @Component
-@Profile("dev", "stg", "prod")
+@Profile("!local")
 class CloudFrontImagePresigner(
     @Value("\${aws.cloudfront.distribution-domain}") private val distributionDomain: String
 ) : ImagePresigner {

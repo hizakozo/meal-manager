@@ -85,15 +85,6 @@ tasks.withType<Test> {
 	useJUnitPlatform()
 }
 
-tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("bootBuildImage") {
-	imageName.set(System.getenv("IMAGE_NAME") ?: "${project.name}:${project.version}")
-	builder.set("paketobuildpacks/builder-jammy-base:latest")
-	imagePlatform.set("linux/arm64")
-	environment.set(mapOf(
-		"BP_JVM_VERSION" to "21"
-	))
-}
-
 openApiGenerate {
 	generatorName.set("kotlin-spring")
 	inputSpec.set("$rootDir/../docs/openapi.yaml")
