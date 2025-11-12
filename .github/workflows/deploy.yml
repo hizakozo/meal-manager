@@ -27,10 +27,11 @@ env:
   PROJECT_NAME: meal-manager
 
 jobs:
-  migrate-database:
+  build:
     runs-on: ubuntu-latest
 
     outputs:
+      image: ${{ steps.build-image.outputs.image }}
       commit_hash: ${{ steps.get-commit.outputs.commit_hash }}
 
     steps:
@@ -52,79 +53,6 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Start CodeBuild migration
-        id: codebuild
-        run: |
-          BUILD_ID=$(aws codebuild start-build \
-            --project-name ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-migration \
-            --source-version ${{ steps.get-commit.outputs.commit_hash }} \
-            --query 'build.id' \
-            --output text)
-
-          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
-          echo "Started CodeBuild: $BUILD_ID"
-
-      - name: Wait for CodeBuild completion
-        run: |
-          BUILD_ID="${{ steps.codebuild.outputs.build_id }}"
-          echo "Waiting for build $BUILD_ID to complete..."
-
-          while true; do
-            BUILD_STATUS=$(aws codebuild batch-get-builds \
-              --ids "$BUILD_ID" \
-              --query 'builds[0].buildStatus' \
-              --output text)
-
-            echo "Current status: $BUILD_STATUS"
-
-            if [ "$BUILD_STATUS" = "SUCCEEDED" ]; then
-              echo "✅ Migration completed successfully"
-              break
-            elif [ "$BUILD_STATUS" = "FAILED" ] || [ "$BUILD_STATUS" = "FAULT" ] || [ "$BUILD_STATUS" = "TIMED_OUT" ] || [ "$BUILD_STATUS" = "STOPPED" ]; then
-              echo "❌ Migration failed with status: $BUILD_STATUS"
-              echo "Check logs: https://console.aws.amazon.com/codesuite/codebuild/projects/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-migration/build/$BUILD_ID"
-              exit 1
-            fi
-
-            sleep 10
-          done
-
-      - name: Get CodeBuild logs URL
-        id: logs
-        run: |
-          BUILD_ID="${{ steps.codebuild.outputs.build_id }}"
-          LOG_URL="https://console.aws.amazon.com/codesuite/codebuild/projects/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-migration/build/$BUILD_ID"
-          echo "log_url=$LOG_URL" >> $GITHUB_OUTPUT
-
-      - name: Migration summary
-        run: |
-          echo "## Database Migration Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ steps.get-commit.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **CodeBuild ID:** ${{ steps.codebuild.outputs.build_id }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Logs:** [View logs](${{ steps.logs.outputs.log_url }})" >> $GITHUB_STEP_SUMMARY
-          echo "- **Status:** ✅ Migration completed successfully" >> $GITHUB_STEP_SUMMARY
-
-  build:
-    needs: migrate-database
-    runs-on: ubuntu-latest
-
-    outputs:
-      image: ${{ steps.build-image.outputs.image }}
-      commit_hash: ${{ needs.migrate-database.outputs.commit_hash }}
-
-    steps:
-      - name: Checkout specified commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.commit_hash || github.sha }}
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
-          aws-region: ${{ env.AWS_REGION }}
-
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
@@ -134,22 +62,100 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ env.PROJECT_NAME }}-api
-          IMAGE_TAG: ${{ needs.migrate-database.outputs.commit_hash }}
+          IMAGE_TAG: ${{ steps.get-commit.outputs.commit_hash }}
         run: |
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f meal-manager-api/Dockerfile meal-manager-api
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          # latestタグも更新
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
       - name: Build summary
         run: |
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit:** ${{ needs.migrate-database.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ steps.get-commit.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Image:** ${{ steps.build-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Built and pushed successfully" >> $GITHUB_STEP_SUMMARY
 
-  deploy:
+  migrate-database:
     needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run migration ECS task
+        id: migration
+        run: |
+          TASK_ARN=$(aws ecs run-task \
+            --cluster ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster \
+            --task-definition ${{ env.PROJECT_NAME }}-migration \
+            --launch-type EC2 \
+            --query 'tasks[0].taskArn' \
+            --output text)
+
+          echo "task_arn=$TASK_ARN" >> $GITHUB_OUTPUT
+          echo "Started migration task: $TASK_ARN"
+
+      - name: Wait for migration task completion
+        run: |
+          TASK_ARN="${{ steps.migration.outputs.task_arn }}"
+          echo "Waiting for migration task to complete..."
+
+          while true; do
+            TASK_STATUS=$(aws ecs describe-tasks \
+              --cluster ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster \
+              --tasks "$TASK_ARN" \
+              --query 'tasks[0].lastStatus' \
+              --output text)
+
+            echo "Current status: $TASK_STATUS"
+
+            if [ "$TASK_STATUS" = "STOPPED" ]; then
+              EXIT_CODE=$(aws ecs describe-tasks \
+                --cluster ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster \
+                --tasks "$TASK_ARN" \
+                --query 'tasks[0].containers[0].exitCode' \
+                --output text)
+
+              if [ "$EXIT_CODE" = "0" ]; then
+                echo "✅ Migration completed successfully"
+                break
+              else
+                echo "❌ Migration failed with exit code: $EXIT_CODE"
+                exit 1
+              fi
+            fi
+
+            sleep 10
+          done
+
+      - name: Get CloudWatch logs URL
+        id: logs
+        run: |
+          TASK_ID=$(echo "${{ steps.migration.outputs.task_arn }}" | awk -F/ '{print $NF}')
+          LOG_URL="https://console.aws.amazon.com/cloudwatch/home?region=${{ env.AWS_REGION }}#logsV2:log-groups/log-group/\$252Fecs\$252F${{ env.PROJECT_NAME }}-migration/log-events/migration\$252F${{ env.PROJECT_NAME }}-migration\$252F$TASK_ID"
+          echo "log_url=$LOG_URL" >> $GITHUB_OUTPUT
+
+      - name: Migration summary
+        run: |
+          echo "## Database Migration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{ needs.build.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Task ARN:** ${{ steps.migration.outputs.task_arn }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Logs:** [View logs](${{ steps.logs.outputs.log_url }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status:** ✅ Migration completed successfully" >> $GITHUB_STEP_SUMMARY
+
+  deploy:
+    needs: [build, migrate-database]
     runs-on: ubuntu-latest
 
     steps:
