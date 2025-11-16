@@ -95,12 +95,17 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
 
+    env:
+      ECR_REGISTRY: 544173119727.dkr.ecr.ap-northeast-1.amazonaws.com
+      IMAGE_URI: 544173119727.dkr.ecr.ap-northeast-1.amazonaws.com/meal-manager-api:${{ needs.build.outputs.commit_hash }}
+
     steps:
       - name: Debug build outputs
         run: |
           echo "Build outputs:"
           echo "  image_uri: ${{ needs.build.outputs.image_uri }}"
           echo "  commit_hash: ${{ needs.build.outputs.commit_hash }}"
+          echo "  constructed image_uri: ${{ env.IMAGE_URI }}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -120,7 +125,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.PROJECT_NAME }}-api
-          image: ${{ needs.build.outputs.image_uri }}
+          image: ${{ env.IMAGE_URI }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -135,7 +140,7 @@ jobs:
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** ${{ needs.build.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** ${{ needs.build.outputs.image_uri }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ env.IMAGE_URI }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Cluster:** ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster" >> $GITHUB_STEP_SUMMARY
           echo "- **Service:** ${{ env.PROJECT_NAME }}-api-service" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
