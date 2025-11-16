@@ -53,11 +53,14 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ inputs.environment }}-github-actions-role
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build image with bootBuildImage
+      - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -68,21 +71,14 @@ jobs:
           IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$IMAGE_URI" >> $GITHUB_OUTPUT
 
-          cd meal-manager-api
-
-          # bootBuildImageでARM64イメージをビルド
-          ./gradlew bootBuildImage --no-daemon
-
-          # ビルドされたイメージを取得
-          LOCAL_IMAGE=$(docker images --format "{{.Repository}}:{{.Tag}}" | grep meal-manager-api | head -n 1)
-
-          # ECRタグを付ける
-          docker tag $LOCAL_IMAGE $IMAGE_URI
-          docker tag $LOCAL_IMAGE $ECR_REGISTRY/$ECR_REPOSITORY:latest
-
-          # ECRにプッシュ
-          docker push $IMAGE_URI
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          # ARM64イメージをビルドしてプッシュ（コミットハッシュタグとlatestタグの両方）
+          docker buildx build \
+            --platform linux/arm64 \
+            -t $IMAGE_URI \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            -f meal-manager-api/Dockerfile \
+            meal-manager-api \
+            --push
 
       - name: Build summary
         run: |
