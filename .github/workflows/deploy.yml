@@ -69,7 +69,10 @@ jobs:
         run: |
           # イメージURIを設定
           IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "Setting image output: $IMAGE_URI"
           echo "image=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "GITHUB_OUTPUT file content:"
+          cat $GITHUB_OUTPUT
 
           # ARM64イメージをビルドしてプッシュ（コミットハッシュタグとlatestタグの両方）
           docker buildx build \
