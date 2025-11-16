@@ -93,6 +93,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Debug build outputs
+        run: |
+          echo "Build outputs:"
+          echo "  image: ${{ needs.build.outputs.image }}"
+          echo "  commit_hash: ${{ needs.build.outputs.commit_hash }}"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
