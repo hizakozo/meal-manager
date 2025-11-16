@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      image_uri: ${{ steps.build-image.outputs.image }}
+      image_uri: ${{ steps.build-image.outputs.docker_image }}
       commit_hash: ${{ steps.get-commit.outputs.commit_hash }}
 
     steps:
@@ -70,7 +70,7 @@ jobs:
           # イメージURIを設定
           IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "Setting image output: $IMAGE_URI"
-          echo "image=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "docker_image=$IMAGE_URI" >> $GITHUB_OUTPUT
           echo "GITHUB_OUTPUT file content:"
           cat $GITHUB_OUTPUT
 
@@ -88,7 +88,7 @@ jobs:
           echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** ${{ steps.get-commit.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** ${{ steps.build-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ steps.build-image.outputs.docker_image }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Built and pushed successfully" >> $GITHUB_STEP_SUMMARY
 
   deploy:
