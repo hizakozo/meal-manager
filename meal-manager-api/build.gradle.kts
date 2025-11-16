@@ -129,3 +129,14 @@ liquibase {
 	}
 	runList = "main"
 }
+
+tasks.named<org.springframework.boot.gradle.tasks.bundling.BootBuildImage>("bootBuildImage") {
+	builder.set("paketobuildpacks/builder:base")
+	imageName.set("${project.group}/${project.name}:${project.version}")
+
+	// ARM64アーキテクチャを指定
+	environment.set(mapOf(
+		"BP_JVM_VERSION" to "21",
+		"BP_ARCH" to "arm64"
+	))
+}
