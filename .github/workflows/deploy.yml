@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
 
     outputs:
-      image: ${{ steps.build-image.outputs.image }}
+      image_uri: ${{ steps.build-image.outputs.image }}
       commit_hash: ${{ steps.get-commit.outputs.commit_hash }}
 
     steps:
@@ -99,7 +99,7 @@ jobs:
       - name: Debug build outputs
         run: |
           echo "Build outputs:"
-          echo "  image: ${{ needs.build.outputs.image }}"
+          echo "  image_uri: ${{ needs.build.outputs.image_uri }}"
           echo "  commit_hash: ${{ needs.build.outputs.commit_hash }}"
 
       - name: Configure AWS credentials
@@ -120,7 +120,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.PROJECT_NAME }}-api
-          image: ${{ needs.build.outputs.image }}
+          image: ${{ needs.build.outputs.image_uri }}
 
       - name: Deploy Amazon ECS task definition
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
@@ -135,7 +135,7 @@ jobs:
           echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "- **Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit:** ${{ needs.build.outputs.commit_hash }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Image:** ${{ needs.build.outputs.image }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Image:** ${{ needs.build.outputs.image_uri }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Cluster:** ${{ env.PROJECT_NAME }}-${{ inputs.environment }}-cluster" >> $GITHUB_STEP_SUMMARY
           echo "- **Service:** ${{ env.PROJECT_NAME }}-api-service" >> $GITHUB_STEP_SUMMARY
           echo "- **Status:** ✅ Deployed successfully" >> $GITHUB_STEP_SUMMARY
